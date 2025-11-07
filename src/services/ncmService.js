@@ -1,0 +1,399 @@
+import * as XLSX from 'xlsx';
+
+// Cache para armazenar a tabela NCM carregada
+let ncmTableCache = null;
+let ncmTableLoading = false;
+let ncmTablePromise = null;
+
+/**
+ * Carrega a tabela NCM do arquivo Excel na pasta public
+ */
+const loadNCMTable = async () => {
+  // Se já está carregando, retornar a promise existente
+  if (ncmTableLoading && ncmTablePromise) {
+    return ncmTablePromise;
+  }
+
+  // Se já está em cache, retornar
+  if (ncmTableCache) {
+    return ncmTableCache;
+  }
+
+  // Iniciar carregamento
+  ncmTableLoading = true;
+  ncmTablePromise = new Promise(async (resolve, reject) => {
+    try {
+      // Buscar o arquivo da pasta public
+      const response = await fetch('/Tabela NCM 2022 com Utrib_Comércio Exterior_vigência 01.10.25.xlsx');
+      
+      if (!response.ok) {
+        throw new Error('Erro ao carregar tabela NCM');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // Pegar a primeira planilha
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+
+      // Converter para JSON (primeira linha como header)
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: null
+      });
+
+      if (jsonData.length === 0) {
+        throw new Error('Tabela NCM vazia');
+      }
+
+      // Criar um mapa para busca rápida
+      // Assumindo que a primeira linha contém os headers
+      const headers = jsonData[0];
+      
+      // Procurar colunas relevantes (pode variar, vamos tentar detectar)
+      let ncmColumnIndex = -1;
+      let descriptionColumnIndex = -1;
+      let uTribColumnIndex = -1;
+
+      headers.forEach((header, index) => {
+        const headerStr = String(header || '').toLowerCase();
+        if (headerStr.includes('ncm') || headerStr.includes('código')) {
+          ncmColumnIndex = index;
+        }
+        if (headerStr.includes('descrição') || headerStr.includes('descricao') || headerStr.includes('desc')) {
+          descriptionColumnIndex = index;
+        }
+        if (headerStr.includes('utrib') || headerStr.includes('u.trib') || headerStr.includes('unidade')) {
+          uTribColumnIndex = index;
+        }
+      });
+
+      // Se não encontrou, tentar padrões comuns
+      if (ncmColumnIndex === -1) {
+        ncmColumnIndex = 0; // Primeira coluna geralmente é o código
+      }
+      if (descriptionColumnIndex === -1) {
+        descriptionColumnIndex = 1; // Segunda coluna geralmente é a descrição
+      }
+
+      // Criar mapa de NCM -> {description, uTrib}
+      const ncmMap = new Map();
+
+      // Processar linhas (pular header)
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!row || row.length === 0) continue;
+
+        const ncmCode = row[ncmColumnIndex];
+        if (!ncmCode) continue;
+
+        // Limpar e formatar código NCM
+        const cleanNCM = String(ncmCode).replace(/[.\s]/g, '').trim();
+        
+        if (cleanNCM.length >= 8) {
+          const description = row[descriptionColumnIndex] ? String(row[descriptionColumnIndex]).trim() : '';
+          const uTrib = uTribColumnIndex >= 0 && row[uTribColumnIndex] ? String(row[uTribColumnIndex]).trim() : '';
+
+          // Armazenar no mapa (usar código limpo como chave)
+          ncmMap.set(cleanNCM, {
+            description: description || 'Descrição não disponível',
+            uTrib: uTrib || null
+          });
+        }
+      }
+
+      ncmTableCache = ncmMap;
+      ncmTableLoading = false;
+      resolve(ncmMap);
+    } catch (error) {
+      console.error('Erro ao carregar tabela NCM:', error);
+      ncmTableLoading = false;
+      ncmTablePromise = null;
+      reject(error);
+    }
+  });
+
+  return ncmTablePromise;
+};
+
+/**
+ * Busca a descrição da NCM
+ * @param {string} ncm - Código NCM (formato: xxxx.xx.xx ou xxxxxxxx)
+ * @returns {Promise<{description: string, uTrib?: string, source?: string}>}
+ */
+export const getNCMDescription = async (ncm) => {
+  try {
+    // Limpar o NCM (remover pontos e espaços)
+    const cleanNCM = String(ncm).replace(/[.\s]/g, '');
+    
+    if (!cleanNCM || cleanNCM.length < 8) {
+      throw new Error('NCM inválido');
+    }
+
+    // Carregar tabela NCM (usa cache se já carregada)
+    const ncmTable = await loadNCMTable();
+
+    // Buscar no mapa
+    const ncmData = ncmTable.get(cleanNCM);
+
+    if (ncmData) {
+      return {
+        description: ncmData.description,
+        uTrib: ncmData.uTrib,
+        source: 'Tabela NCM 2022 - Receita Federal do Brasil'
+      };
+    }
+
+    // Se não encontrou, tentar buscar com código formatado
+    const formattedNCM = `${cleanNCM.substring(0, 4)}.${cleanNCM.substring(4, 6)}.${cleanNCM.substring(6, 8)}`;
+    
+    // Tentar buscar novamente (às vezes o código pode estar formatado na tabela)
+    for (const [key, value] of ncmTable.entries()) {
+      if (key.includes(cleanNCM) || cleanNCM.includes(key)) {
+        return {
+          description: value.description,
+          uTrib: value.uTrib,
+          source: 'Tabela NCM 2022 - Receita Federal do Brasil'
+        };
+      }
+    }
+
+    // Se não encontrou na tabela local, tentar buscar no site systax.com.br
+    const systaxData = await getNCMFromSystax(cleanNCM, formattedNCM);
+    if (systaxData) {
+      return systaxData;
+    }
+
+    // Se não encontrou, retornar mensagem
+    return {
+      description: `NCM ${formattedNCM} não encontrado na tabela. Verifique se o código está correto.`,
+      source: 'Tabela NCM 2022 - Receita Federal do Brasil',
+      note: 'Este código NCM não foi encontrado na tabela oficial.'
+    };
+  } catch (error) {
+    console.error('Erro ao buscar descrição da NCM:', error);
+    return {
+      description: 'Erro ao buscar descrição da NCM. Tente novamente mais tarde.',
+      error: error.message,
+      source: 'Sistema'
+    };
+  }
+};
+
+/**
+ * Formata o código NCM para exibição
+ */
+export const formatNCM = (ncm) => {
+  if (!ncm) return '';
+  const ncmStr = String(ncm).replace(/\D/g, '');
+  if (ncmStr.length < 8) return ncmStr;
+  return `${ncmStr.substring(0, 4)}.${ncmStr.substring(4, 6)}.${ncmStr.substring(6, 8)}`;
+};
+
+/**
+ * Busca NCM no site systax.com.br
+ * Lê a página, identifica a tabela NCM/Descrição e extrai a descrição
+ */
+const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
+  try {
+    // URL do site systax para consulta de NCM (sem pontos)
+    // O código NCM deve ser enviado sem pontos (ex: 39191010, não 3919.10.10)
+    const systaxUrl = `https://www.systax.com.br/classificacaofiscal/ncm/${cleanNCM}`;
+    
+    // Tentar fazer requisição usando proxy CORS para contornar bloqueio
+    // Usar um proxy público ou criar um backend próprio
+    try {
+      // Opção 1: Tentar com proxy CORS público (pode não estar disponível)
+      const proxyUrls = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(systaxUrl)}`,
+        `https://cors-anywhere.herokuapp.com/${systaxUrl}`,
+        systaxUrl // Tentar direto como fallback
+      ];
+      
+      let response = null;
+      let lastError = null;
+      
+      // Tentar cada proxy até um funcionar
+      for (const proxyUrl of proxyUrls) {
+        try {
+          response = await fetch(proxyUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            mode: 'cors'
+          });
+          
+          if (response && response.ok) {
+            break; // Sucesso, sair do loop
+          }
+        } catch (proxyError) {
+          lastError = proxyError;
+          continue; // Tentar próximo proxy
+        }
+      }
+      
+      if (!response || !response.ok) {
+        throw lastError || new Error('Nenhum proxy funcionou');
+      }
+
+      if (response.ok) {
+        const html = await response.text();
+        
+        // Criar um parser de HTML simples usando regex (ou DOM se disponível)
+        // Procurar por tabela que contenha NCM e Descrição
+        
+        // Padrão 1: Procurar por tabela HTML
+        const tableMatch = html.match(/<table[^>]*>[\s\S]*?<\/table>/i);
+        if (tableMatch) {
+          const tableHtml = tableMatch[0];
+          
+          // Procurar pela linha que contém o código NCM
+          // O NCM pode estar formatado (3919.10.10) ou sem pontos (39191010)
+          const ncmPatterns = [
+            formattedNCM, // 3919.10.10
+            cleanNCM,     // 39191010
+            `${cleanNCM.substring(0, 4)}.${cleanNCM.substring(4, 6)}.${cleanNCM.substring(6, 8)}` // formatado
+          ];
+          
+          for (const ncmPattern of ncmPatterns) {
+            // Procurar linha da tabela que contenha o NCM
+            const rowRegex = new RegExp(`<tr[^>]*>([\\s\\S]*?${ncmPattern.replace(/\./g, '\\.')}[\\s\\S]*?)<\\/tr>`, 'i');
+            const rowMatch = tableHtml.match(rowRegex);
+            
+            if (rowMatch) {
+              const rowHtml = rowMatch[1];
+              
+              // Extrair células da linha (td)
+              const cells = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
+              
+              if (cells && cells.length >= 2) {
+                // Geralmente a primeira célula é o NCM e a segunda é a descrição
+                // Ou pode estar em outra ordem, vamos tentar todas
+                for (let i = 0; i < cells.length; i++) {
+                  const cellContent = cells[i].replace(/<[^>]*>/g, '').trim();
+                  
+                  // Se a célula contém o NCM, a próxima provavelmente é a descrição
+                  if (cellContent.includes(cleanNCM) || cellContent.includes(formattedNCM)) {
+                    // Tentar próxima célula
+                    if (i + 1 < cells.length) {
+                      let description = cells[i + 1].replace(/<[^>]*>/g, '').trim();
+                      description = description.replace(/\s+/g, ' ').trim();
+                      
+                      if (description && description.length > 5 && !description.match(/^\d+$/)) {
+                        return {
+                          description: description,
+                          source: 'Systax - Classificação Fiscal',
+                          link: systaxUrl
+                        };
+                      }
+                    }
+                  }
+                  
+                  // Se a célula parece ser uma descrição (não é só número)
+                  if (cellContent.length > 10 && !cellContent.match(/^[\d.\s]+$/) && 
+                      !cellContent.includes(cleanNCM) && !cellContent.includes(formattedNCM)) {
+                    // Verificar se a célula anterior contém o NCM
+                    if (i > 0) {
+                      const prevCell = cells[i - 1].replace(/<[^>]*>/g, '').trim();
+                      if (prevCell.includes(cleanNCM) || prevCell.includes(formattedNCM)) {
+                        return {
+                          description: cellContent,
+                          source: 'Systax - Classificação Fiscal',
+                          link: systaxUrl
+                        };
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // Padrão 2: Procurar por divs ou outros elementos que contenham NCM e descrição
+        // Procurar por padrão: NCM seguido de descrição
+        const ncmDescPattern = new RegExp(
+          `(?:${formattedNCM.replace(/\./g, '\\.')}|${cleanNCM})[\\s\\S]{0,200}?([A-ZÁÊÔÇ][^<]{20,200})`,
+          'i'
+        );
+        const descMatch = html.match(ncmDescPattern);
+        
+        if (descMatch && descMatch[1]) {
+          let description = descMatch[1].replace(/<[^>]*>/g, '').trim();
+          description = description.replace(/\s+/g, ' ').trim();
+          
+          // Limpar caracteres especiais e tags HTML restantes
+          description = description.replace(/&nbsp;/g, ' ')
+                                  .replace(/&amp;/g, '&')
+                                  .replace(/&lt;/g, '<')
+                                  .replace(/&gt;/g, '>')
+                                  .replace(/&quot;/g, '"')
+                                  .trim();
+          
+          if (description && description.length > 10) {
+            return {
+              description: description,
+              source: 'Systax - Classificação Fiscal',
+              link: systaxUrl
+            };
+          }
+        }
+        
+        // Padrão 3: Procurar por elementos com classes específicas que possam conter descrição
+        const descClassPatterns = [
+          /<div[^>]*class="[^"]*desc[^"]*"[^>]*>([^<]+)<\/div>/i,
+          /<span[^>]*class="[^"]*desc[^"]*"[^>]*>([^<]+)<\/span>/i,
+          /<p[^>]*class="[^"]*desc[^"]*"[^>]*>([^<]+)<\/p>/i,
+        ];
+        
+        for (const pattern of descClassPatterns) {
+          const match = html.match(pattern);
+          if (match && match[1]) {
+            let description = match[1].trim();
+            if (description && description.length > 10) {
+              return {
+                description: description,
+                source: 'Systax - Classificação Fiscal',
+                link: systaxUrl
+              };
+            }
+          }
+        }
+      }
+    } catch (fetchError) {
+      // CORS ou outro erro de fetch - usar abordagem alternativa
+      console.log('Não foi possível buscar diretamente no systax (CORS):', fetchError);
+      
+      // Retornar link para consulta manual quando CORS bloquear
+      return {
+        description: `NCM ${formattedNCM} - Não foi possível buscar automaticamente devido a restrições de segurança do navegador (CORS).`,
+        source: 'Systax - Classificação Fiscal',
+        link: systaxUrl,
+        note: 'Clique no link abaixo para consultar a descrição completa no site Systax. Para buscar automaticamente, seria necessário um servidor proxy ou backend.'
+      };
+    }
+
+    // Se não conseguiu buscar diretamente, retornar link para consulta manual
+    return {
+      description: `NCM ${formattedNCM} - Consulte a descrição completa no site Systax.`,
+      source: 'Systax - Classificação Fiscal',
+      link: systaxUrl,
+      note: 'Clique no link abaixo para consultar a descrição completa no site Systax.'
+    };
+  } catch (error) {
+    console.error('Erro ao buscar NCM no Systax:', error);
+    return null;
+  }
+};
+
+/**
+ * Limpa o cache da tabela NCM (útil para recarregar após atualização)
+ */
+export const clearNCMTableCache = () => {
+  ncmTableCache = null;
+  ncmTableLoading = false;
+  ncmTablePromise = null;
+};
