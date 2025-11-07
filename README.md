@@ -54,8 +54,20 @@ npm install
    - Crie um novo projeto ou use um existente
    - Vá em "Configurações do Projeto" > "Seus apps" > "Web"
    - Copie as credenciais de configuração
-   - Abra o arquivo `src/firebase/config.js`
-   - Substitua os valores `YOUR_API_KEY`, `YOUR_AUTH_DOMAIN`, etc. pelas suas credenciais
+   - Copie o arquivo `.env.example` para `.env.local`:
+     ```bash
+     cp .env.example .env.local
+     ```
+   - Abra o arquivo `.env.local` e preencha com suas credenciais do Firebase:
+     ```
+     REACT_APP_FIREBASE_API_KEY=sua-api-key
+     REACT_APP_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
+     REACT_APP_FIREBASE_PROJECT_ID=seu-projeto-id
+     REACT_APP_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
+     REACT_APP_FIREBASE_MESSAGING_SENDER_ID=seu-sender-id
+     REACT_APP_FIREBASE_APP_ID=seu-app-id
+     ```
+   - ⚠️ **Importante**: O arquivo `.env.local` não é commitado no Git por questões de segurança
 
 4. Configure as regras do Firestore:
    - No Console do Firebase, vá em "Firestore Database"
