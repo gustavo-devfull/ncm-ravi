@@ -55,7 +55,7 @@ export const normalizeDataForFirebase = (data) => {
     // Primeiro tenta o mapeamento específico
     let normalizedKey = normalizeFieldForFirebase(key);
     // Se não encontrou no mapeamento, sanitiza o nome
-    if (normalizedKey === key && /[~*\/\[\]]/.test(key)) {
+    if (normalizedKey === key && /[~*/[\]]/.test(key)) {
       normalizedKey = sanitizeFieldName(key);
     }
     normalized[normalizedKey] = data[key];
@@ -213,17 +213,17 @@ export const readSpreadsheet = (file) => {
           if (!row || row.length === 0) continue;
           
           // Verificar se esta linha contém headers conhecidos
-          const rowText = row.map(cell => String(cell || '').trim().toLowerCase()).join(' ');
-          const hasKnownHeaders = EXPECTED_FIELDS.some(field => {
-            const fieldLower = field.toLowerCase();
-            return rowText.includes(fieldLower) || 
-                   row.some(cell => {
-                     const cellStr = String(cell || '').trim().toLowerCase();
-                     return cellStr === fieldLower || 
-                            cellStr.includes('ncm') && fieldLower.includes('ncm') ||
-                            cellStr.includes('cest') && fieldLower.includes('cest');
-                   });
-          });
+              const rowText = row.map(cell => String(cell || '').trim().toLowerCase()).join(' ');
+              const hasKnownHeaders = EXPECTED_FIELDS.some(field => {
+                const fieldLower = field.toLowerCase();
+                return rowText.includes(fieldLower) ||
+                       row.some(cell => {
+                         const cellStr = String(cell || '').trim().toLowerCase();
+                         return cellStr === fieldLower || 
+                                (cellStr.includes('ncm') && fieldLower.includes('ncm')) ||
+                                (cellStr.includes('cest') && fieldLower.includes('cest'));
+                       });
+              });
           
           if (hasKnownHeaders) {
             headerRowIndex = i;
