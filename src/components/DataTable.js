@@ -18,8 +18,11 @@ const DataTable = ({ data, loading, onDataChange }) => {
   const [deletingMultiple, setDeletingMultiple] = useState(false);
   const [ncmModalOpen, setNcmModalOpen] = useState(false);
   const [selectedNCM, setSelectedNCM] = useState(null);
+  const [selectedNCMItem, setSelectedNCMItem] = useState(null);
   const [ncmDescription, setNcmDescription] = useState(null);
+  const [editableDescription, setEditableDescription] = useState('');
   const [loadingNCM, setLoadingNCM] = useState(false);
+  const [savingDescription, setSavingDescription] = useState(false);
 
   // Usar os campos esperados na ordem definida
   const columns = useMemo(() => {
@@ -253,17 +256,31 @@ const DataTable = ({ data, loading, onDataChange }) => {
     }
   };
 
-  const handleNCMClick = async (ncm) => {
+  const handleNCMClick = async (ncm, item) => {
     if (!ncm) return;
     
     setSelectedNCM(ncm);
+    setSelectedNCMItem(item);
     setNcmModalOpen(true);
     setLoadingNCM(true);
     setNcmDescription(null);
+    setEditableDescription(item?.descrição || item?.descricao || '');
     
     try {
+      // Primeiro, usar a descrição salva no banco se existir
+      if (item?.descrição || item?.descricao) {
+        setEditableDescription(item.descrição || item.descricao);
+        setLoadingNCM(false);
+        return;
+      }
+      
+      // Se não tiver descrição salva, buscar da tabela/externa
       const description = await getNCMDescription(ncm);
       setNcmDescription(description);
+      // Preencher o campo editável com a descrição encontrada
+      if (description && description.description) {
+        setEditableDescription(description.description);
+      }
     } catch (error) {
       console.error('Erro ao buscar descrição da NCM:', error);
       setNcmDescription({
@@ -272,6 +289,37 @@ const DataTable = ({ data, loading, onDataChange }) => {
       });
     } finally {
       setLoadingNCM(false);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    if (!selectedNCMItem || !selectedNCMItem.id) return;
+    
+    setSavingDescription(true);
+    try {
+      const dataToSave = {
+        descrição: editableDescription.trim()
+      };
+      
+      await updateData(selectedNCMItem.id, dataToSave);
+      
+      // Recarregar dados
+      if (onDataChange) {
+        onDataChange();
+      }
+      
+      // Atualizar o item local
+      setSelectedNCMItem({
+        ...selectedNCMItem,
+        descrição: editableDescription.trim()
+      });
+      
+      alert('Descrição salva com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar descrição:', error);
+      alert('Erro ao salvar descrição. Tente novamente.');
+    } finally {
+      setSavingDescription(false);
     }
   };
 
@@ -594,9 +642,9 @@ const DataTable = ({ data, loading, onDataChange }) => {
                               const formattedNCM = formatNCM(value);
                               return (
                                 <button
-                                  onClick={() => handleNCMClick(value)}
+                                  onClick={() => handleNCMClick(value, item)}
                                   className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer transition-colors"
-                                  title="Clique para ver a descrição da NCM"
+                                  title="Clique para ver e editar a descrição da NCM"
                                 >
                                   {formattedNCM}
                                 </button>
@@ -724,7 +772,9 @@ const DataTable = ({ data, loading, onDataChange }) => {
         onClose={() => {
           setNcmModalOpen(false);
           setSelectedNCM(null);
+          setSelectedNCMItem(null);
           setNcmDescription(null);
+          setEditableDescription('');
         }}
         title={`Descrição da NCM ${selectedNCM ? formatNCM(selectedNCM) : ''}`}
       >
@@ -733,16 +783,25 @@ const DataTable = ({ data, loading, onDataChange }) => {
             <RefreshCw className="w-6 h-6 text-blue-600 animate-spin mr-3" />
             <span className="text-gray-600">Buscando descrição da NCM...</span>
           </div>
-        ) : ncmDescription ? (
+        ) : (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Descrição:</h3>
-              <p className="text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                {ncmDescription.description}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Descrição da NCM:
+              </label>
+              <textarea
+                value={editableDescription}
+                onChange={(e) => setEditableDescription(e.target.value)}
+                placeholder="Digite ou edite a descrição da NCM..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[120px]"
+                rows={4}
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                A descrição será salva junto com o registro do NCM no banco de dados.
               </p>
             </div>
-            
-            {ncmDescription.uTrib && (
+
+            {ncmDescription && ncmDescription.uTrib && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Unidade Tributável (uTrib):</h3>
                 <p className="text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -751,13 +810,13 @@ const DataTable = ({ data, loading, onDataChange }) => {
               </div>
             )}
             
-            {ncmDescription.source && (
+            {ncmDescription && ncmDescription.source && (
               <div className="text-sm text-gray-500">
                 <strong>Fonte:</strong> {ncmDescription.source}
               </div>
             )}
             
-            {ncmDescription.link && (
+            {ncmDescription && ncmDescription.link && (
               <div className="pt-4 border-t border-gray-200">
                 <a
                   href={ncmDescription.link}
@@ -772,16 +831,38 @@ const DataTable = ({ data, loading, onDataChange }) => {
                 </a>
               </div>
             )}
-            
-            {ncmDescription.note && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-                <strong>Nota:</strong> {ncmDescription.note}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            Nenhuma informação disponível.
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setNcmModalOpen(false);
+                  setSelectedNCM(null);
+                  setSelectedNCMItem(null);
+                  setNcmDescription(null);
+                  setEditableDescription('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveDescription}
+                disabled={savingDescription || !selectedNCMItem?.id}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {savingDescription ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Salvar Descrição</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </Modal>
