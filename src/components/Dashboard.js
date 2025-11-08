@@ -37,9 +37,16 @@ const Dashboard = () => {
       <header className="bg-white shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">NCM Dashboard</h1>
-              <p className="text-gray-600 mt-1">Sistema de gerenciamento de planilhas</p>
+            <div className="flex items-center space-x-4">
+              <img 
+                src="/RAVI-LOGO-BRANCO.svg" 
+                alt="RAVI Logo" 
+                className="h-[50px] w-auto"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">NCM Dashboard</h1>
+                <p className="text-gray-600 mt-1">Sistema de gerenciamento de planilhas</p>
+              </div>
             </div>
             <button
               onClick={() => setIsUploadModalOpen(true)}
