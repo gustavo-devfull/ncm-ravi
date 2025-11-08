@@ -816,15 +816,15 @@ const DataTable = ({ data, loading, onDataChange }) => {
               </div>
             )}
             
-            {ncmDescription && ncmDescription.link && (
+            {selectedNCM && (
               <div className="pt-4 border-t border-gray-200">
                 <a
-                  href={ncmDescription.link}
+                  href={`https://www.systax.com.br/classificacaofiscal/ncm/${String(selectedNCM).replace(/[.\s]/g, '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center"
                 >
-                  Consultar tabela oficial da Receita Federal
+                  Consultar NCM no Systax
                   <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
