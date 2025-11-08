@@ -4,6 +4,7 @@ import { getAllData } from '../services/spreadsheetService';
 import DataTable from './DataTable';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
+import MainHeader from './MainHeader';
 
 const Dashboard = () => {
   const [data, setData] = useState([]);
@@ -33,7 +34,10 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
+      {/* Header Principal - Navegação */}
+      <MainHeader />
+
+      {/* Header Secundário - Gestor NCM */}
       <header className="shadow-sm" style={{ backgroundColor: 'rgb(1, 117, 166)' }}>
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -43,7 +47,7 @@ const Dashboard = () => {
                 alt="RAVI Logo" 
                 className="h-[50px] w-auto"
               />
-              <h1 className="text-3xl font-bold text-white">Gestor NCM</h1>
+              <h1 className="text-white" style={{ fontSize: '16px', letterSpacing: '-1px', fontWeight: 600 }}>Gestor NCM</h1>
             </div>
             <button
               onClick={() => setIsUploadModalOpen(true)}
