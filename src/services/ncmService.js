@@ -242,73 +242,123 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
       if (response.ok) {
         const html = await response.text();
         
+        // Extrair informações estruturadas do Systax
+        let chapterCode = null;
+        let chapterDescription = null;
+        let ncmTable = [];
+        
+        // Extrair código do capítulo (primeiros 4 dígitos)
+        chapterCode = cleanNCM.substring(0, 4);
+        
+        // Procurar descrição do capítulo - padrão: heading com código seguido de descrição
+        // Exemplo: <h4>3919</h4> seguido de descrição
+        const chapterPatterns = [
+          new RegExp(`<h[1-6][^>]*>\\s*${chapterCode}\\s*<\\/h[1-6]>[\\s\\S]{0,500}?([A-ZÁÊÔÇ][^<]{30,300}?)(?:<\\/p>|<\\/div>|<h[1-6]|NCM:|###)`, 'i'),
+          new RegExp(`<strong[^>]*>\\s*${chapterCode}\\s*<\\/strong>[\\s\\S]{0,500}?([A-ZÁÊÔÇ][^<]{30,300}?)(?:<\\/p>|<\\/div>|<h[1-6]|NCM:)`, 'i'),
+          new RegExp(`(?:^|>)\\s*${chapterCode}\\s*(?:<|$)[\\s\\S]{0,500}?([A-ZÁÊÔÇ][^<]{30,300}?)(?:<\\/p>|<\\/div>|<h[1-6]|NCM:)`, 'i')
+        ];
+        
+        for (const pattern of chapterPatterns) {
+          const chapterMatch = html.match(pattern);
+          if (chapterMatch && chapterMatch[1]) {
+            chapterDescription = chapterMatch[1]
+              .replace(/<[^>]*>/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            // Limitar tamanho da descrição
+            if (chapterDescription.length > 300) {
+              chapterDescription = chapterDescription.substring(0, 300) + '...';
+            }
+            
+            if (chapterDescription.length > 20) {
+              break; // Encontrou uma descrição válida
+            }
+          }
+        }
+        
         // Criar um parser de HTML simples usando regex (ou DOM se disponível)
         // Procurar por tabela que contenha NCM e Descrição
         
-        // Padrão 1: Procurar por tabela HTML
+        // Padrão 1: Procurar por tabela HTML e extrair todas as linhas
         const tableMatch = html.match(/<table[^>]*>[\s\S]*?<\/table>/i);
         if (tableMatch) {
           const tableHtml = tableMatch[0];
           
-          // Procurar pela linha que contém o código NCM
-          // O NCM pode estar formatado (3919.10.10) ou sem pontos (39191010)
-          const ncmPatterns = [
-            formattedNCM, // 3919.10.10
-            cleanNCM,     // 39191010
-            `${cleanNCM.substring(0, 4)}.${cleanNCM.substring(4, 6)}.${cleanNCM.substring(6, 8)}` // formatado
-          ];
+          // Extrair todas as linhas da tabela (tr)
+          const rows = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
           
-          for (const ncmPattern of ncmPatterns) {
-            // Procurar linha da tabela que contenha o NCM
-            const rowRegex = new RegExp(`<tr[^>]*>([\\s\\S]*?${ncmPattern.replace(/\./g, '\\.')}[\\s\\S]*?)<\\/tr>`, 'i');
-            const rowMatch = tableHtml.match(rowRegex);
-            
-            if (rowMatch) {
-              const rowHtml = rowMatch[1];
-              
+          if (rows && rows.length > 0) {
+            // Processar cada linha da tabela
+            for (const rowHtml of rows) {
               // Extrair células da linha (td)
               const cells = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
               
               if (cells && cells.length >= 2) {
-                // Geralmente a primeira célula é o NCM e a segunda é a descrição
-                // Ou pode estar em outra ordem, vamos tentar todas
+                let ncmCell = null;
+                let descCell = null;
+                
+                // Procurar célula com NCM e célula com descrição
                 for (let i = 0; i < cells.length; i++) {
                   const cellContent = cells[i].replace(/<[^>]*>/g, '').trim();
                   
-                  // Se a célula contém o NCM, a próxima provavelmente é a descrição
-                  if (cellContent.includes(cleanNCM) || cellContent.includes(formattedNCM)) {
-                    // Tentar próxima célula
+                  // Verificar se é um código NCM (contém números e pode ter pontos)
+                  if (cellContent.match(/^\d{8}(?:\.\d{2}){0,2}$|^\d{4}\.\d{2}\.\d{2}$/)) {
+                    ncmCell = cellContent;
+                    // Próxima célula provavelmente é a descrição
                     if (i + 1 < cells.length) {
-                      let description = cells[i + 1].replace(/<[^>]*>/g, '').trim();
-                      description = description.replace(/\s+/g, ' ').trim();
-                      
-                      if (description && description.length > 5 && !description.match(/^\d+$/)) {
-                        return {
-                          description: description,
-                          source: 'Systax - Classificação Fiscal',
-                          link: systaxUrl
-                        };
-                      }
+                      descCell = cells[i + 1].replace(/<[^>]*>/g, '').trim();
                     }
+                    break;
                   }
                   
-                  // Se a célula parece ser uma descrição (não é só número)
-                  if (cellContent.length > 10 && !cellContent.match(/^[\d.\s]+$/) && 
-                      !cellContent.includes(cleanNCM) && !cellContent.includes(formattedNCM)) {
-                    // Verificar se a célula anterior contém o NCM
-                    if (i > 0) {
-                      const prevCell = cells[i - 1].replace(/<[^>]*>/g, '').trim();
-                      if (prevCell.includes(cleanNCM) || prevCell.includes(formattedNCM)) {
-                        return {
-                          description: cellContent,
-                          source: 'Systax - Classificação Fiscal',
-                          link: systaxUrl
-                        };
-                      }
+                  // Se encontrou o NCM específico que estamos procurando
+                  if (cellContent.includes(cleanNCM) || cellContent.includes(formattedNCM)) {
+                    ncmCell = formattedNCM;
+                    if (i + 1 < cells.length) {
+                      descCell = cells[i + 1].replace(/<[^>]*>/g, '').trim();
                     }
+                    break;
                   }
                 }
+                
+                // Se encontrou NCM e descrição, adicionar à tabela
+                if (ncmCell && descCell && descCell.length > 5) {
+                  // Formatar NCM se necessário
+                  let formattedNcmCell = ncmCell;
+                  if (!ncmCell.includes('.')) {
+                    formattedNcmCell = `${ncmCell.substring(0, 4)}.${ncmCell.substring(4, 6)}.${ncmCell.substring(6, 8)}`;
+                  }
+                  
+                  ncmTable.push({
+                    ncm: formattedNcmCell,
+                    description: descCell.replace(/\s+/g, ' ').trim()
+                  });
+                }
               }
+            }
+            
+            // Se encontrou a tabela e tem dados, retornar
+            if (ncmTable.length > 0) {
+              // Encontrar a descrição específica do NCM consultado
+              const specificNCM = ncmTable.find(row => 
+                row.ncm === formattedNCM || 
+                row.ncm.replace(/\./g, '') === cleanNCM
+              );
+              
+              return {
+                chapterCode: chapterCode,
+                chapterDescription: chapterDescription,
+                ncmTable: ncmTable,
+                description: specificNCM ? specificNCM.description : (ncmTable[0]?.description || ''),
+                source: 'Systax - Classificação Fiscal',
+                link: systaxUrl
+              };
             }
           }
         }
@@ -334,7 +384,16 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
                                   .trim();
           
           if (description && description.length > 10) {
+            // Tentar extrair NCM da descrição ou usar o código formatado
+            ncmTable.push({
+              ncm: formattedNCM,
+              description: description
+            });
+            
             return {
+              chapterCode: chapterCode,
+              chapterDescription: chapterDescription,
+              ncmTable: ncmTable,
               description: description,
               source: 'Systax - Classificação Fiscal',
               link: systaxUrl
@@ -354,7 +413,18 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
           if (match && match[1]) {
             let description = match[1].trim();
             if (description && description.length > 10) {
+              // Se não encontrou tabela mas encontrou descrição, criar entrada na tabela
+              if (ncmTable.length === 0) {
+                ncmTable.push({
+                  ncm: formattedNCM,
+                  description: description
+                });
+              }
+              
               return {
+                chapterCode: chapterCode,
+                chapterDescription: chapterDescription,
+                ncmTable: ncmTable,
                 description: description,
                 source: 'Systax - Classificação Fiscal',
                 link: systaxUrl
@@ -369,6 +439,9 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
       
       // Retornar link para consulta manual quando CORS bloquear
       return {
+        chapterCode: cleanNCM.substring(0, 4),
+        chapterDescription: null,
+        ncmTable: [],
         description: `NCM ${formattedNCM} - Não foi possível buscar automaticamente devido a restrições de segurança do navegador (CORS).`,
         source: 'Systax - Classificação Fiscal',
         link: systaxUrl,
@@ -378,6 +451,9 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
 
     // Se não conseguiu buscar diretamente, retornar link para consulta manual
     return {
+      chapterCode: cleanNCM.substring(0, 4),
+      chapterDescription: null,
+      ncmTable: [],
       description: `NCM ${formattedNCM} - Consulte a descrição completa no site Systax.`,
       source: 'Systax - Classificação Fiscal',
       link: systaxUrl,

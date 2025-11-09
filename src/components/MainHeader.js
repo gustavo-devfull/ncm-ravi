@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Menu, X } from 'lucide-react';
 
 const MainHeader = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const navigationLinks = [
     {
       label: 'Sistema de Cotações Online',
@@ -42,7 +45,23 @@ const MainHeader = () => {
   return (
     <header className="bg-gray-800 shadow-md">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Botão Hamburger - Mobile */}
+        <div className="flex justify-end md:hidden mb-2">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="text-white hover:bg-gray-700 p-2 rounded transition-colors"
+            aria-label="Toggle menu"
+          >
+            {isMenuOpen ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <Menu className="w-6 h-6" />
+            )}
+          </button>
+        </div>
+
+        {/* Menu Desktop - Horizontal */}
+        <div className="hidden md:flex flex-wrap items-center justify-between gap-2">
           {navigationLinks.map((link, index) => (
             <a
               key={index}
@@ -55,6 +74,24 @@ const MainHeader = () => {
             </a>
           ))}
         </div>
+
+        {/* Menu Mobile - Vertical */}
+        {isMenuOpen && (
+          <div className="md:hidden flex flex-col gap-2">
+            {navigationLinks.map((link, index) => (
+              <a
+                key={index}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className={`px-3 py-2 text-sm rounded transition-colors text-center ${link.colorClass}`}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </header>
   );

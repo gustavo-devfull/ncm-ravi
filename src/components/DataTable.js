@@ -278,8 +278,21 @@ const DataTable = ({ data, loading, onDataChange }) => {
       const description = await getNCMDescription(ncm);
       setNcmDescription(description);
       // Preencher o campo editável com a descrição encontrada
-      if (description && description.description) {
-        setEditableDescription(description.description);
+      if (description) {
+        // Priorizar descrição da tabela NCM se disponível
+        if (description.ncmTable && description.ncmTable.length > 0) {
+          const specificNCM = description.ncmTable.find(row => 
+            row.ncm === formatNCM(ncm) || 
+            row.ncm.replace(/\./g, '') === String(ncm).replace(/[.\s]/g, '')
+          );
+          if (specificNCM && specificNCM.description) {
+            setEditableDescription(specificNCM.description);
+          } else if (description.ncmTable[0] && description.ncmTable[0].description) {
+            setEditableDescription(description.ncmTable[0].description);
+          }
+        } else if (description.description) {
+          setEditableDescription(description.description);
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar descrição da NCM:', error);
@@ -785,6 +798,53 @@ const DataTable = ({ data, loading, onDataChange }) => {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Exibir informações do capítulo e tabela se disponíveis */}
+            {ncmDescription && (ncmDescription.chapterCode || (ncmDescription.ncmTable && ncmDescription.ncmTable.length > 0)) && (
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
+                {ncmDescription.chapterCode && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                      {ncmDescription.chapterCode}
+                    </h3>
+                    {ncmDescription.chapterDescription && (
+                      <p className="text-gray-700">
+                        {ncmDescription.chapterDescription}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {ncmDescription.ncmTable && ncmDescription.ncmTable.length > 0 && (
+                  <div className="mt-4">
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-200">
+                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">
+                            NCM
+                          </th>
+                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">
+                            Descrição
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ncmDescription.ncmTable.map((row, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-3 py-2 text-sm text-gray-700 font-mono">
+                              {row.ncm}
+                            </td>
+                            <td className="border border-gray-300 px-3 py-2 text-sm text-gray-700">
+                              {row.description}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Descrição da NCM:
