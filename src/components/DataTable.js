@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Download, RefreshCw, Edit2, Save, X, Trash2 } from 'lucide-react';
+import { Search, Download, RefreshCw, Edit2, Save, X, Trash2, Plus } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { EXPECTED_FIELDS, updateData, deleteData, deleteMultipleData } from '../services/spreadsheetService';
+import { EXPECTED_FIELDS, updateData, deleteData, deleteMultipleData, saveSpreadsheetData } from '../services/spreadsheetService';
 import { getNCMDescription } from '../services/ncmService';
 import Modal from './Modal';
 
@@ -23,6 +23,9 @@ const DataTable = ({ data, loading, onDataChange }) => {
   const [editableDescription, setEditableDescription] = useState('');
   const [loadingNCM, setLoadingNCM] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newNCMData, setNewNCMData] = useState({});
+  const [creating, setCreating] = useState(false);
 
   // Usar os campos esperados na ordem definida
   const columns = useMemo(() => {
@@ -471,6 +474,13 @@ const DataTable = ({ data, loading, onDataChange }) => {
             </button>
           )}
           <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Criar Novo NCM</span>
+          </button>
+          <button
             onClick={handleExport}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
           >
@@ -908,6 +918,151 @@ const DataTable = ({ data, loading, onDataChange }) => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal de Criar Novo NCM */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setNewNCMData({});
+        }}
+        title="Criar Novo NCM"
+      >
+        <div className="space-y-4">
+          {EXPECTED_FIELDS.map((field) => {
+            const isNumericField = ['IVA', 'II', 'IPI', 'PIS', 'COFINS', 'ICMS', 'U$/KG considerado', 'Santos', 'Itajai'].includes(field);
+            const isDateField = field === 'ultima atualização';
+            
+            return (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {field}:
+                </label>
+                {isDateField ? (
+                  <input
+                    type="date"
+                    value={newNCMData[field] || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value) {
+                        const date = new Date(value);
+                        const year = date.getFullYear();
+                        const month = date.getMonth();
+                        const day = date.getDate();
+                        const utcDate = Date.UTC(year, month, day);
+                        let days = (utcDate / (86400 * 1000)) + 25569;
+                        if (days >= 60) {
+                          days = days + 1;
+                        }
+                        setNewNCMData({ ...newNCMData, [field]: days });
+                      } else {
+                        setNewNCMData({ ...newNCMData, [field]: '' });
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                ) : isNumericField ? (
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={newNCMData[field] || ''}
+                    onChange={(e) => {
+                      let value = parseFloat(e.target.value) || '';
+                      const percentFields = ['IVA', 'II', 'IPI', 'PIS', 'COFINS', 'ICMS'];
+                      if (percentFields.includes(field) && value > 1) {
+                        value = value / 100;
+                      }
+                      setNewNCMData({ ...newNCMData, [field]: value });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={newNCMData[field] || ''}
+                    onChange={(e) => setNewNCMData({ ...newNCMData, [field]: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={field === 'NCM' ? 'Ex: 39191010' : ''}
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setNewNCMData({});
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={async () => {
+                if (!newNCMData['NCM']) {
+                  alert('Por favor, preencha o campo NCM.');
+                  return;
+                }
+
+                setCreating(true);
+                try {
+                  // Adicionar data atual se não foi preenchida
+                  if (!newNCMData['ultima atualização']) {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = now.getMonth();
+                    const day = now.getDate();
+                    const utcDate = Date.UTC(year, month, day);
+                    let days = (utcDate / (86400 * 1000)) + 25569;
+                    if (days >= 60) {
+                      days = days + 1;
+                    }
+                    newNCMData['ultima atualização'] = days;
+                  }
+
+                  // Salvar como objeto no formato esperado pelo serviço
+                  await saveSpreadsheetData({
+                    rows: [newNCMData],
+                    headers: EXPECTED_FIELDS,
+                    sheetName: 'Manual'
+                  });
+                  
+                  // Recarregar dados
+                  if (onDataChange) {
+                    onDataChange();
+                  }
+                  
+                  setIsCreateModalOpen(false);
+                  setNewNCMData({});
+                  alert('NCM criado com sucesso!');
+                } catch (error) {
+                  console.error('Erro ao criar NCM:', error);
+                  alert('Erro ao criar NCM. Tente novamente.');
+                } finally {
+                  setCreating(false);
+                }
+              }}
+              disabled={creating || !newNCMData['NCM']}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {creating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Criando...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Criar NCM</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
