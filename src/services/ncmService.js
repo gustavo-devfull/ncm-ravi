@@ -261,6 +261,7 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
         for (const pattern of chapterPatterns) {
           const chapterMatch = html.match(pattern);
           if (chapterMatch && chapterMatch[1]) {
+            // Decodificar entidades HTML para corrigir acentuação
             chapterDescription = chapterMatch[1]
               .replace(/<[^>]*>/g, '')
               .replace(/&nbsp;/g, ' ')
@@ -268,6 +269,43 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>')
               .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&aacute;/g, 'á')
+              .replace(/&eacute;/g, 'é')
+              .replace(/&iacute;/g, 'í')
+              .replace(/&oacute;/g, 'ó')
+              .replace(/&uacute;/g, 'ú')
+              .replace(/&agrave;/g, 'à')
+              .replace(/&egrave;/g, 'è')
+              .replace(/&igrave;/g, 'ì')
+              .replace(/&ograve;/g, 'ò')
+              .replace(/&ugrave;/g, 'ù')
+              .replace(/&acirc;/g, 'â')
+              .replace(/&ecirc;/g, 'ê')
+              .replace(/&icirc;/g, 'î')
+              .replace(/&ocirc;/g, 'ô')
+              .replace(/&ucirc;/g, 'û')
+              .replace(/&atilde;/g, 'ã')
+              .replace(/&otilde;/g, 'õ')
+              .replace(/&ccedil;/g, 'ç')
+              .replace(/&Aacute;/g, 'Á')
+              .replace(/&Eacute;/g, 'É')
+              .replace(/&Iacute;/g, 'Í')
+              .replace(/&Oacute;/g, 'Ó')
+              .replace(/&Uacute;/g, 'Ú')
+              .replace(/&Agrave;/g, 'À')
+              .replace(/&Egrave;/g, 'È')
+              .replace(/&Igrave;/g, 'Ì')
+              .replace(/&Ograve;/g, 'Ò')
+              .replace(/&Ugrave;/g, 'Ù')
+              .replace(/&Acirc;/g, 'Â')
+              .replace(/&Ecirc;/g, 'Ê')
+              .replace(/&Icirc;/g, 'Î')
+              .replace(/&Ocirc;/g, 'Ô')
+              .replace(/&Ucirc;/g, 'Û')
+              .replace(/&Atilde;/g, 'Ã')
+              .replace(/&Otilde;/g, 'Õ')
+              .replace(/&Ccedil;/g, 'Ç')
               .replace(/\s+/g, ' ')
               .trim();
             
@@ -335,9 +373,57 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
                     formattedNcmCell = `${ncmCell.substring(0, 4)}.${ncmCell.substring(4, 6)}.${ncmCell.substring(6, 8)}`;
                   }
                   
+                  // Decodificar entidades HTML para corrigir acentuação
+                  let cleanDesc = descCell
+                    .replace(/<[^>]*>/g, '')
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'")
+                    .replace(/&aacute;/g, 'á')
+                    .replace(/&eacute;/g, 'é')
+                    .replace(/&iacute;/g, 'í')
+                    .replace(/&oacute;/g, 'ó')
+                    .replace(/&uacute;/g, 'ú')
+                    .replace(/&agrave;/g, 'à')
+                    .replace(/&egrave;/g, 'è')
+                    .replace(/&igrave;/g, 'ì')
+                    .replace(/&ograve;/g, 'ò')
+                    .replace(/&ugrave;/g, 'ù')
+                    .replace(/&acirc;/g, 'â')
+                    .replace(/&ecirc;/g, 'ê')
+                    .replace(/&icirc;/g, 'î')
+                    .replace(/&ocirc;/g, 'ô')
+                    .replace(/&ucirc;/g, 'û')
+                    .replace(/&atilde;/g, 'ã')
+                    .replace(/&otilde;/g, 'õ')
+                    .replace(/&ccedil;/g, 'ç')
+                    .replace(/&Aacute;/g, 'Á')
+                    .replace(/&Eacute;/g, 'É')
+                    .replace(/&Iacute;/g, 'Í')
+                    .replace(/&Oacute;/g, 'Ó')
+                    .replace(/&Uacute;/g, 'Ú')
+                    .replace(/&Agrave;/g, 'À')
+                    .replace(/&Egrave;/g, 'È')
+                    .replace(/&Igrave;/g, 'Ì')
+                    .replace(/&Ograve;/g, 'Ò')
+                    .replace(/&Ugrave;/g, 'Ù')
+                    .replace(/&Acirc;/g, 'Â')
+                    .replace(/&Ecirc;/g, 'Ê')
+                    .replace(/&Icirc;/g, 'Î')
+                    .replace(/&Ocirc;/g, 'Ô')
+                    .replace(/&Ucirc;/g, 'Û')
+                    .replace(/&Atilde;/g, 'Ã')
+                    .replace(/&Otilde;/g, 'Õ')
+                    .replace(/&Ccedil;/g, 'Ç')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                  
                   ncmTable.push({
                     ncm: formattedNcmCell,
-                    description: descCell.replace(/\s+/g, ' ').trim()
+                    description: cleanDesc
                   });
                 }
               }
@@ -384,17 +470,65 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
                                   .trim();
           
           if (description && description.length > 10) {
+            // Decodificar entidades HTML para corrigir acentuação
+            let cleanDesc = description
+              .replace(/<[^>]*>/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&aacute;/g, 'á')
+              .replace(/&eacute;/g, 'é')
+              .replace(/&iacute;/g, 'í')
+              .replace(/&oacute;/g, 'ó')
+              .replace(/&uacute;/g, 'ú')
+              .replace(/&agrave;/g, 'à')
+              .replace(/&egrave;/g, 'è')
+              .replace(/&igrave;/g, 'ì')
+              .replace(/&ograve;/g, 'ò')
+              .replace(/&ugrave;/g, 'ù')
+              .replace(/&acirc;/g, 'â')
+              .replace(/&ecirc;/g, 'ê')
+              .replace(/&icirc;/g, 'î')
+              .replace(/&ocirc;/g, 'ô')
+              .replace(/&ucirc;/g, 'û')
+              .replace(/&atilde;/g, 'ã')
+              .replace(/&otilde;/g, 'õ')
+              .replace(/&ccedil;/g, 'ç')
+              .replace(/&Aacute;/g, 'Á')
+              .replace(/&Eacute;/g, 'É')
+              .replace(/&Iacute;/g, 'Í')
+              .replace(/&Oacute;/g, 'Ó')
+              .replace(/&Uacute;/g, 'Ú')
+              .replace(/&Agrave;/g, 'À')
+              .replace(/&Egrave;/g, 'È')
+              .replace(/&Igrave;/g, 'Ì')
+              .replace(/&Ograve;/g, 'Ò')
+              .replace(/&Ugrave;/g, 'Ù')
+              .replace(/&Acirc;/g, 'Â')
+              .replace(/&Ecirc;/g, 'Ê')
+              .replace(/&Icirc;/g, 'Î')
+              .replace(/&Ocirc;/g, 'Ô')
+              .replace(/&Ucirc;/g, 'Û')
+              .replace(/&Atilde;/g, 'Ã')
+              .replace(/&Otilde;/g, 'Õ')
+              .replace(/&Ccedil;/g, 'Ç')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
             // Tentar extrair NCM da descrição ou usar o código formatado
             ncmTable.push({
               ncm: formattedNCM,
-              description: description
+              description: cleanDesc
             });
             
             return {
               chapterCode: chapterCode,
               chapterDescription: chapterDescription,
               ncmTable: ncmTable,
-              description: description,
+              description: cleanDesc,
               source: 'Systax - Classificação Fiscal',
               link: systaxUrl
             };
@@ -413,11 +547,59 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
           if (match && match[1]) {
             let description = match[1].trim();
             if (description && description.length > 10) {
+              // Decodificar entidades HTML para corrigir acentuação
+              let cleanDesc = description
+                .replace(/<[^>]*>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&aacute;/g, 'á')
+                .replace(/&eacute;/g, 'é')
+                .replace(/&iacute;/g, 'í')
+                .replace(/&oacute;/g, 'ó')
+                .replace(/&uacute;/g, 'ú')
+                .replace(/&agrave;/g, 'à')
+                .replace(/&egrave;/g, 'è')
+                .replace(/&igrave;/g, 'ì')
+                .replace(/&ograve;/g, 'ò')
+                .replace(/&ugrave;/g, 'ù')
+                .replace(/&acirc;/g, 'â')
+                .replace(/&ecirc;/g, 'ê')
+                .replace(/&icirc;/g, 'î')
+                .replace(/&ocirc;/g, 'ô')
+                .replace(/&ucirc;/g, 'û')
+                .replace(/&atilde;/g, 'ã')
+                .replace(/&otilde;/g, 'õ')
+                .replace(/&ccedil;/g, 'ç')
+                .replace(/&Aacute;/g, 'Á')
+                .replace(/&Eacute;/g, 'É')
+                .replace(/&Iacute;/g, 'Í')
+                .replace(/&Oacute;/g, 'Ó')
+                .replace(/&Uacute;/g, 'Ú')
+                .replace(/&Agrave;/g, 'À')
+                .replace(/&Egrave;/g, 'È')
+                .replace(/&Igrave;/g, 'Ì')
+                .replace(/&Ograve;/g, 'Ò')
+                .replace(/&Ugrave;/g, 'Ù')
+                .replace(/&Acirc;/g, 'Â')
+                .replace(/&Ecirc;/g, 'Ê')
+                .replace(/&Icirc;/g, 'Î')
+                .replace(/&Ocirc;/g, 'Ô')
+                .replace(/&Ucirc;/g, 'Û')
+                .replace(/&Atilde;/g, 'Ã')
+                .replace(/&Otilde;/g, 'Õ')
+                .replace(/&Ccedil;/g, 'Ç')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
               // Se não encontrou tabela mas encontrou descrição, criar entrada na tabela
               if (ncmTable.length === 0) {
                 ncmTable.push({
                   ncm: formattedNCM,
-                  description: description
+                  description: cleanDesc
                 });
               }
               
@@ -425,7 +607,7 @@ const getNCMFromSystax = async (cleanNCM, formattedNCM) => {
                 chapterCode: chapterCode,
                 chapterDescription: chapterDescription,
                 ncmTable: ncmTable,
-                description: description,
+                description: cleanDesc,
                 source: 'Systax - Classificação Fiscal',
                 link: systaxUrl
               };

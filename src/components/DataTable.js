@@ -798,50 +798,33 @@ const DataTable = ({ data, loading, onDataChange }) => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Exibir informações do capítulo e tabela se disponíveis */}
-            {ncmDescription && (ncmDescription.chapterCode || (ncmDescription.ncmTable && ncmDescription.ncmTable.length > 0)) && (
+            {/* Exibir informações do capítulo e descrição do NCM específico */}
+            {ncmDescription && ncmDescription.chapterCode && (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
-                {ncmDescription.chapterCode && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                      {ncmDescription.chapterCode}
-                    </h3>
-                    {ncmDescription.chapterDescription && (
-                      <p className="text-gray-700">
-                        {ncmDescription.chapterDescription}
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                {ncmDescription.ncmTable && ncmDescription.ncmTable.length > 0 && (
-                  <div className="mt-4">
-                    <table className="w-full border-collapse border border-gray-300">
-                      <thead>
-                        <tr className="bg-gray-200">
-                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">
-                            NCM
-                          </th>
-                          <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">
-                            Descrição
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ncmDescription.ncmTable.map((row, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="border border-gray-300 px-3 py-2 text-sm text-gray-700 font-mono">
-                              {row.ncm}
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-sm text-gray-700">
-                              {row.description}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    {ncmDescription.chapterCode}
+                  </h3>
+                  {ncmDescription.chapterDescription && (
+                    <p className="text-gray-700 mb-3">
+                      {ncmDescription.chapterDescription}
+                    </p>
+                  )}
+                  
+                  {/* Exibir NCM específico e sua descrição */}
+                  {selectedNCM && ncmDescription.description && (
+                    <div className="mt-3 pt-3 border-t border-gray-300">
+                      <div className="flex items-start space-x-3">
+                        <span className="text-sm font-mono text-gray-700 font-semibold">
+                          {formatNCM(selectedNCM)}
+                        </span>
+                        <span className="text-sm text-gray-700 flex-1">
+                          {ncmDescription.description}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
