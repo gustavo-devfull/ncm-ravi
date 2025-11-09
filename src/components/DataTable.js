@@ -21,6 +21,7 @@ const DataTable = ({ data, loading, onDataChange }) => {
   const [selectedNCMItem, setSelectedNCMItem] = useState(null);
   const [ncmDescription, setNcmDescription] = useState(null);
   const [editableDescription, setEditableDescription] = useState('');
+  const [editableChapterDescription, setEditableChapterDescription] = useState('');
   const [loadingNCM, setLoadingNCM] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -267,22 +268,56 @@ const DataTable = ({ data, loading, onDataChange }) => {
     setNcmModalOpen(true);
     setLoadingNCM(true);
     setNcmDescription(null);
-    setEditableDescription(item?.descrição || item?.descricao || '');
     
+    // Primeiro, verificar se há dados salvos no banco
+    // Verificar variações possíveis do nome do campo
+    const savedNCMDescription = item?.descrição || item?.descricao || item?.descricao_ncm || '';
+    const savedChapterDescription = item?.['descrição_capítulo'] || item?.['descricao_capitulo'] || item?.descrição_capítulo || item?.descricao_capitulo || item?.descricao_capitulo_ncm || '';
+    
+    if (savedNCMDescription || savedChapterDescription) {
+      // Se tiver dados salvos, usar eles e não buscar externamente
+      setEditableDescription(savedNCMDescription);
+      setEditableChapterDescription(savedChapterDescription);
+      
+      // Extrair código do capítulo do NCM
+      const cleanNCM = String(ncm).replace(/[.\s]/g, '');
+      const chapterCode = cleanNCM.substring(0, 4);
+      
+      // Montar objeto ncmDescription para exibição
+      setNcmDescription({
+        chapterCode: chapterCode,
+        chapterDescription: savedChapterDescription || '',
+        description: savedNCMDescription || '',
+        source: 'Banco de dados local'
+      });
+      
+      setLoadingNCM(false);
+      return;
+    }
+    
+    // Se não tiver dados salvos, buscar da tabela/externa
     try {
-      // Primeiro, usar a descrição salva no banco se existir
-      if (item?.descrição || item?.descricao) {
-        setEditableDescription(item.descrição || item.descricao);
-        setLoadingNCM(false);
-        return;
+      // Extrair código do capítulo do NCM
+      const cleanNCM = String(ncm).replace(/[.\s]/g, '');
+      const chapterCode = cleanNCM.substring(0, 4);
+      
+      const description = await getNCMDescription(ncm);
+      
+      // Garantir que o código do capítulo esteja presente
+      if (!description.chapterCode && chapterCode) {
+        description.chapterCode = chapterCode;
       }
       
-      // Se não tiver descrição salva, buscar da tabela/externa
-      const description = await getNCMDescription(ncm);
       setNcmDescription(description);
-      // Preencher o campo editável com a descrição encontrada
+      
+      // Preencher os campos editáveis com as descrições encontradas
       if (description) {
-        // Priorizar descrição da tabela NCM se disponível
+        // Preencher descrição do capítulo se disponível
+        if (description.chapterDescription) {
+          setEditableChapterDescription(description.chapterDescription);
+        }
+        
+        // Preencher descrição do NCM
         if (description.ncmTable && description.ncmTable.length > 0) {
           const specificNCM = description.ncmTable.find(row => 
             row.ncm === formatNCM(ncm) || 
@@ -299,7 +334,11 @@ const DataTable = ({ data, loading, onDataChange }) => {
       }
     } catch (error) {
       console.error('Erro ao buscar descrição da NCM:', error);
+      // Extrair código do capítulo mesmo em caso de erro
+      const cleanNCM = String(ncm).replace(/[.\s]/g, '');
+      const chapterCode = cleanNCM.substring(0, 4);
       setNcmDescription({
+        chapterCode: chapterCode,
         description: 'Erro ao buscar descrição da NCM. Tente novamente mais tarde.',
         error: error.message
       });
@@ -314,7 +353,8 @@ const DataTable = ({ data, loading, onDataChange }) => {
     setSavingDescription(true);
     try {
       const dataToSave = {
-        descrição: editableDescription.trim()
+        descrição: editableDescription.trim(),
+        'descrição_capítulo': editableChapterDescription.trim()
       };
       
       await updateData(selectedNCMItem.id, dataToSave);
@@ -327,13 +367,24 @@ const DataTable = ({ data, loading, onDataChange }) => {
       // Atualizar o item local
       setSelectedNCMItem({
         ...selectedNCMItem,
-        descrição: editableDescription.trim()
+        descrição: editableDescription.trim(),
+        'descrição_capítulo': editableChapterDescription.trim()
       });
       
-      alert('Descrição salva com sucesso!');
+      // Atualizar ncmDescription para refletir os dados salvos
+      if (ncmDescription) {
+        setNcmDescription({
+          ...ncmDescription,
+          chapterDescription: editableChapterDescription.trim(),
+          description: editableDescription.trim(),
+          source: 'Banco de dados local'
+        });
+      }
+      
+      alert('Descrições salvas com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar descrição:', error);
-      alert('Erro ao salvar descrição. Tente novamente.');
+      console.error('Erro ao salvar descrições:', error);
+      alert('Erro ao salvar descrições. Tente novamente.');
     } finally {
       setSavingDescription(false);
     }
@@ -798,6 +849,7 @@ const DataTable = ({ data, loading, onDataChange }) => {
           setSelectedNCMItem(null);
           setNcmDescription(null);
           setEditableDescription('');
+          setEditableChapterDescription('');
         }}
         title={`Descrição da NCM ${selectedNCM ? formatNCM(selectedNCM) : ''}`}
       >
@@ -808,36 +860,33 @@ const DataTable = ({ data, loading, onDataChange }) => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Exibir informações do capítulo e descrição do NCM específico */}
+            {/* Exibir código do capítulo */}
             {ncmDescription && ncmDescription.chapterCode && (
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                    {ncmDescription.chapterCode}
-                  </h3>
-                  {ncmDescription.chapterDescription && (
-                    <p className="text-gray-700 mb-3">
-                      {ncmDescription.chapterDescription}
-                    </p>
-                  )}
-                  
-                  {/* Exibir NCM específico e sua descrição */}
-                  {selectedNCM && ncmDescription.description && (
-                    <div className="mt-3 pt-3 border-t border-gray-300">
-                      <div className="flex items-start space-x-3">
-                        <span className="text-sm font-mono text-gray-700 font-semibold">
-                          {formatNCM(selectedNCM)}
-                        </span>
-                        <span className="text-sm text-gray-700 flex-1">
-                          {ncmDescription.description}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                  Capítulo {ncmDescription.chapterCode}
+                </h3>
               </div>
             )}
 
+            {/* Campo editável para descrição do capítulo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Descrição do Capítulo:
+              </label>
+              <textarea
+                value={editableChapterDescription}
+                onChange={(e) => setEditableChapterDescription(e.target.value)}
+                placeholder="Digite ou edite a descrição do capítulo..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[100px]"
+                rows={3}
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                A descrição do capítulo será salva junto com o registro do NCM no banco de dados.
+              </p>
+            </div>
+
+            {/* Campo editável para descrição do NCM */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Descrição da NCM:
@@ -893,6 +942,7 @@ const DataTable = ({ data, loading, onDataChange }) => {
                   setSelectedNCMItem(null);
                   setNcmDescription(null);
                   setEditableDescription('');
+                  setEditableChapterDescription('');
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               >
