@@ -1,98 +1,97 @@
 import React, { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { ShoppingCart, ClipboardList, Package, ShoppingBag, ChevronUp, ChevronDown } from 'lucide-react';
 
 const MainHeader = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const navigationLinks = [
     {
-      label: 'Sistema de Cotações Online',
+      label: 'Sistemas Cotações Online',
       url: 'https://prod-mori.vercel.app/',
+      icon: ShoppingCart,
       colorClass: 'bg-blue-600 hover:bg-blue-700 text-white'
-    },
-    {
-      label: 'Exportar Cotações Online',
-      url: 'https://exporta-planilha-gamma.vercel.app/',
-      colorClass: 'bg-blue-500 hover:bg-blue-600 text-white'
     },
     {
       label: 'Gerenciador de Cotações',
       url: 'https://cotacoes2025.vercel.app/',
+      icon: ClipboardList,
       colorClass: 'bg-green-600 hover:bg-green-700 text-white'
-    },
-    {
-      label: 'Importar Imagens Cotações',
-      url: 'https://upload-imagens.onrender.com/',
-      colorClass: 'bg-green-500 hover:bg-green-600 text-white'
     },
     {
       label: 'Base de Produtos',
       url: 'https://baseravi2025.vercel.app/',
+      icon: Package,
       colorClass: 'bg-orange-600 hover:bg-orange-700 text-white'
     },
     {
-      label: 'Importar Imagens Base',
-      url: 'https://imagens-base.vercel.app/',
-      colorClass: 'bg-orange-500 hover:bg-orange-600 text-white'
-    },
-    {
-      label: 'Controle de Pedidos',
+      label: 'Controle Pedidos',
       url: 'https://controle-pedidos-ravi.vercel.app/',
-      colorClass: 'bg-white hover:bg-gray-100 text-blue-600'
+      icon: ShoppingBag,
+      colorClass: 'bg-purple-600 hover:bg-purple-700 text-white'
     }
   ];
 
   return (
-    <header className="bg-gray-800 shadow-md">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-3">
-        {/* Botão Hamburger - Mobile */}
-        <div className="flex justify-end md:hidden mb-2">
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="text-white hover:bg-gray-700 p-2 rounded transition-colors"
-            aria-label="Toggle menu"
-          >
-            {isMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
-        </div>
-
-        {/* Menu Desktop - Horizontal */}
-        <div className="hidden md:flex flex-wrap items-center justify-between gap-2">
-          {navigationLinks.map((link, index) => (
-            <a
-              key={index}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`px-3 py-1.5 text-sm rounded transition-colors flex-1 min-w-0 text-center ${link.colorClass}`}
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-
-        {/* Menu Mobile - Vertical */}
-        {isMenuOpen && (
-          <div className="md:hidden flex flex-col gap-2">
-            {navigationLinks.map((link, index) => (
-              <a
-                key={index}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setIsMenuOpen(false)}
-                className={`px-3 py-2 text-sm rounded transition-colors text-center ${link.colorClass}`}
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
+    <header className={`bg-gray-800 shadow-md relative transition-all duration-300 ${isCollapsed ? 'pb-6' : ''}`}>
+      {/* Botão de Colapsar/Expandir */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-full shadow-lg transition-all"
+        aria-label={isCollapsed ? 'Expandir menu' : 'Colapsar menu'}
+      >
+        {isCollapsed ? (
+          <ChevronDown className="w-5 h-5" />
+        ) : (
+          <ChevronUp className="w-5 h-5" />
         )}
-      </div>
+      </button>
+
+      {!isCollapsed && (
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+          {/* Menu Desktop - Grid com Boxes */}
+          <div className="hidden md:grid grid-cols-4 gap-4">
+            {navigationLinks.map((link, index) => {
+              const IconComponent = link.icon;
+              return (
+                <a
+                  key={index}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${link.colorClass} rounded-lg p-4 transition-all hover:shadow-lg hover:scale-105 flex flex-col items-center justify-center space-y-3 min-h-[120px]`}
+                >
+                  <div className="bg-white/20 rounded-lg p-3">
+                    <IconComponent className="w-8 h-8" />
+                  </div>
+                  <span className="text-sm font-medium text-center">{link.label}</span>
+                </a>
+              );
+            })}
+          </div>
+
+          {/* Menu Mobile - Grid com Boxes - Mostra automaticamente quando expandido */}
+          <div className="md:hidden grid grid-cols-2 gap-3">
+            {navigationLinks.map((link, index) => {
+              const IconComponent = link.icon;
+              return (
+                <a
+                  key={index}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsCollapsed(true)}
+                  className={`${link.colorClass} rounded-lg p-4 transition-all hover:shadow-lg flex flex-col items-center justify-center space-y-2 min-h-[100px]`}
+                >
+                  <div className="bg-white/20 rounded-lg p-2">
+                    <IconComponent className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs font-medium text-center">{link.label}</span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
